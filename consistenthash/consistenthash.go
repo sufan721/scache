@@ -3,10 +3,10 @@ package consistenthash
 import (
 	"hash/crc32"
 	"sort"
+	"strconv"
 )
 
 type Hash func(data []byte) uint32
-
 type Map struct {
 	hash     Hash
 	replicas int
@@ -14,25 +14,21 @@ type Map struct {
 	hashMap  map[int]string
 }
 
-func New(replicas int, hash Hash) *Map {
+func NewMap(replicas int) *Map {
 	m := &Map{
-		hash:     hash,
 		replicas: replicas,
 		hashMap:  make(map[int]string),
+		hash:     crc32.ChecksumIEEE,
 	}
-	if m.hash == nil {
-		m.hash = crc32.ChecksumIEEE
-	}
-
 	return m
 }
 
-func (m *Map) Add(key ...string) {
-	for _, key := range key {
+func (m *Map) Add(nodes ...string) {
+	for _, node := range nodes {
 		for i := 0; i < m.replicas; i++ {
-			hash := int(m.hash([]byte(key)))
-			m.hashMap[hash] = key
+			hash := int(m.hash([]byte(strconv.Itoa(i) + node)))
 			m.keys = append(m.keys, hash)
+			m.hashMap[hash] = node
 		}
 	}
 	sort.Ints(m.keys)
@@ -42,6 +38,7 @@ func (m *Map) Get(key string) string {
 	if len(m.keys) == 0 {
 		return ""
 	}
+
 	hash := int(m.hash([]byte(key)))
 	idx := sort.Search(len(m.keys), func(i int) bool {
 		return m.keys[i] >= hash

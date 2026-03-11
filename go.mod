@@ -1,3 +1,2 @@
-module scache
+module gocache
 
-go 1.25
