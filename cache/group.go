@@ -22,6 +22,7 @@ type Group struct {
 	name      string
 	getter    Getter
 	maincache *Cache
+	hotcache  *Cache
 	peer      peer.PeerPicker
 	loader    *singleflight.Group
 }
@@ -36,6 +37,7 @@ func NewGroup(name string, size int, getter Getter) *Group {
 		name:      name,
 		getter:    getter,
 		maincache: NewCache(size),
+		hotcache:  NewCache(size / 8),
 		loader:    &singleflight.Group{},
 	}
 	RW.Lock()
@@ -55,7 +57,9 @@ func (g *Group) Get(key string) (string, error) {
 		return "", fmt.Errorf("key is required")
 	}
 	if v, ok := g.maincache.Get(key); ok {
-		fmt.Println("cache hit")
+		return v, nil
+	}
+	if v, ok := g.hotcache.Get(key); ok {
 		return v, nil
 	}
 	return g.load(key)
@@ -68,7 +72,8 @@ func (g *Group) load(key string) (string, error) {
 			if ok {
 				value, err := peer.Get(key)
 				if err == nil {
-					return value, nil
+					g.hotcache.Add(key, value)
+					return value, err
 				}
 				fmt.Println("peer err：", err)
 
