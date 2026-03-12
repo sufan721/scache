@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"gocache/peer"
 	"sync"
+
+	"golang.org/x/sync/singleflight"
 )
 
 type Getter interface {
@@ -21,6 +23,7 @@ type Group struct {
 	getter    Getter
 	maincache *Cache
 	peer      peer.PeerPicker
+	loader    *singleflight.Group
 }
 
 var (
@@ -33,6 +36,7 @@ func NewGroup(name string, size int, getter Getter) *Group {
 		name:      name,
 		getter:    getter,
 		maincache: NewCache(size),
+		loader:    &singleflight.Group{},
 	}
 	RW.Lock()
 	Groups[name] = m
@@ -58,18 +62,24 @@ func (g *Group) Get(key string) (string, error) {
 }
 
 func (g *Group) load(key string) (string, error) {
-	if g.peer != nil {
-		pee, ok := g.peer.PickPeer(key)
-		if ok {
-			value, err := pee.Get(key)
-			if err == nil {
-				return value, nil
-			}
-			fmt.Println("peer error：", err)
+	v, err, _ := g.loader.Do(key, func() (interface{}, error) {
+		if g.peer != nil {
+			peer, ok := g.peer.PickPeer(key)
+			if ok {
+				value, err := peer.Get(key)
+				if err == nil {
+					return value, nil
+				}
+				fmt.Println("peer err：", err)
 
+			}
 		}
+		return g.getLocally(key)
+	})
+	if err != nil {
+		return "", err
 	}
-	return g.getLocally(key)
+	return v.(string), nil
 }
 
 func (g *Group) getLocally(key string) (string, error) {
