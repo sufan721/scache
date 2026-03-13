@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"gocache/cache/lfu"
 	"gocache/cache/lru"
 	"sync"
 )
@@ -33,9 +34,9 @@ func (c *Cache) Add(key string, value string) {
 	if c.policy == nil {
 		switch c.policy_type {
 		case LRU:
-			c.policy = lru.New(c.maxSize)
+			c.policy = lru.NewLruCache(c.maxSize)
 		case Lfu:
-			c.policy = lfu.New(c.maxSize)
+			c.policy = lfu.NewLfuCache(c.maxSize)
 		case ARC:
 			c.policy = arc.New(c.maxSize)
 		case FIFO:

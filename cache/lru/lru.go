@@ -51,3 +51,8 @@ func (c *Cache) RemoveOldest() {
 		delete(c.cache, kv.key)
 	}
 }
+
+func (c *Cache) Clear() {
+	c.cache = make(map[string]*list.Element)
+	c.ll = list.New()
+}
