@@ -1,10 +1,12 @@
 package lru
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestGet(t *testing.T) {
 
-	lru := New(2)
+	lru := NewLruCache(2)
 
 	lru.Add("key1", "123")
 	lru.Add("key2", "456")
@@ -20,7 +22,7 @@ func TestGet(t *testing.T) {
 
 func TestRemoveOldest(t *testing.T) {
 
-	lru := New(2)
+	lru := NewLruCache(2)
 
 	lru.Add("key1", "1")
 	lru.Add("key2", "2")

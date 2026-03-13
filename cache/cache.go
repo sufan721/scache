@@ -5,10 +5,20 @@ import (
 	"sync"
 )
 
+type Policytype int
+
+const (
+	LRU Policytype = iota
+	Lfu
+	ARC
+	FIFO
+)
+
 type Cache struct {
-	mu      sync.RWMutex
-	data    *lru.Cache
-	maxSize int
+	mu          sync.RWMutex
+	policy      Policy
+	maxSize     int
+	policy_type Policytype
 }
 
 func NewCache(maxSize int) *Cache {
@@ -20,17 +30,26 @@ func NewCache(maxSize int) *Cache {
 func (c *Cache) Add(key string, value string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.data == nil {
-		c.data = lru.New(c.maxSize)
+	if c.policy == nil {
+		switch c.policy_type {
+		case LRU:
+			c.policy = lru.New(c.maxSize)
+		case Lfu:
+			c.policy = lfu.New(c.maxSize)
+		case ARC:
+			c.policy = arc.New(c.maxSize)
+		case FIFO:
+			c.policy = fifo.New(c.maxSize)
+		}
 	}
-	c.data.Add(key, value)
+	c.policy.Add(key, value)
 }
 
 func (c *Cache) Get(key string) (string, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.data == nil {
+	if c.policy == nil {
 		return "", false
 	}
-	return c.data.Get(key)
+	return c.policy.Get(key)
 }
