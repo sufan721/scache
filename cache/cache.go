@@ -37,8 +37,6 @@ func (c *Cache) Add(key string, value string) {
 			c.policy = lru.NewLruCache(c.maxSize)
 		case Lfu:
 			c.policy = lfu.NewLfuCache(c.maxSize)
-		case ARC:
-			c.policy = arc.New(c.maxSize)
 		case FIFO:
 			c.policy = fifo.New(c.maxSize)
 		}
