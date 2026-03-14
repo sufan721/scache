@@ -2,12 +2,14 @@ package lfu
 
 import (
 	"container/list"
+	"time"
 )
 
 type lfunode struct {
-	key  string
-	val  string
-	freq int
+	key    string
+	val    string
+	freq   int
+	expire int64
 }
 
 type LfuCache struct {
@@ -21,6 +23,7 @@ func NewLfuCache(maxSize int) *LfuCache {
 	if maxSize <= 0 {
 		panic("maxSize must be greater than zero")
 	}
+
 	return &LfuCache{
 		maxSize: maxSize,
 		minfreq: 0,
@@ -28,70 +31,121 @@ func NewLfuCache(maxSize int) *LfuCache {
 		freqMap: make(map[int]*list.List),
 	}
 }
-func (L *LfuCache) Add(key string, val string) {
+
+func (L *LfuCache) Add(key string, val string, ttl time.Duration) {
+
 	if L.maxSize <= 0 {
 		return
 	}
+
+	// key 已存在
 	if ele, ok := L.cache[key]; ok {
+
 		node := ele.Value.(*lfunode)
+
 		node.val = val
+		node.expire = time.Now().Add(ttl).UnixNano()
+
 		L.updateFreq(ele)
+
 		return
 	}
+
+	// 容量满
 	if len(L.cache) >= L.maxSize {
 		L.removeMinFreq()
 	}
 
 	node := &lfunode{
-		key:  key,
-		val:  val,
-		freq: 1,
+		key:    key,
+		val:    val,
+		freq:   1,
+		expire: time.Now().Add(ttl).UnixNano(),
 	}
+
 	if L.freqMap[node.freq] == nil {
 		L.freqMap[node.freq] = list.New()
 	}
+
 	ele := L.freqMap[node.freq].PushFront(node)
+
 	L.cache[key] = ele
+
 	L.minfreq = 1
 }
 
 func (L *LfuCache) Get(key string) (string, bool) {
+
 	if ele, ok := L.cache[key]; ok {
+
 		node := ele.Value.(*lfunode)
+
+		// TTL 检查
+		if time.Now().UnixNano() > node.expire {
+
+			L.freqMap[node.freq].Remove(ele)
+
+			delete(L.cache, key)
+
+			return "", false
+		}
+
 		L.updateFreq(ele)
+
 		return node.val, true
 	}
+
 	return "", false
 }
 
 func (L *LfuCache) updateFreq(element *list.Element) {
+
 	node := element.Value.(*lfunode)
+
 	oldFreq := node.freq
+
 	L.freqMap[oldFreq].Remove(element)
+
 	if L.freqMap[oldFreq].Len() == 0 {
+
 		delete(L.freqMap, oldFreq)
+
 		if L.minfreq == oldFreq {
 			L.minfreq++
 		}
 	}
+
 	node.freq++
+
 	newFreq := node.freq
+
 	if L.freqMap[newFreq] == nil {
 		L.freqMap[newFreq] = list.New()
 	}
+
 	newele := L.freqMap[newFreq].PushFront(node)
+
 	L.cache[node.key] = newele
 }
+
 func (L *LfuCache) removeMinFreq() {
+
 	list := L.freqMap[L.minfreq]
+
 	if list == nil {
 		return
 	}
+
 	back := list.Back()
+
 	if back != nil {
+
 		node := back.Value.(*lfunode)
+
 		list.Remove(back)
+
 		delete(L.cache, node.key)
+
 		if list.Len() == 0 {
 			delete(L.freqMap, L.minfreq)
 		}

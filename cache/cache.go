@@ -1,9 +1,12 @@
 package cache
 
 import (
-	"gocache/cache/lfu"
-	"gocache/cache/lru"
+	policy2 "gocache/cache/policy"
+	"gocache/cache/policy/lfu"
+	"gocache/cache/policy/lru"
+	"math/rand"
 	"sync"
+	"time"
 )
 
 type Policytype int
@@ -11,13 +14,16 @@ type Policytype int
 const (
 	LRU Policytype = iota
 	Lfu
-	ARC
-	FIFO
 )
+const baseTTL = time.Second * 10
+
+func Gettime() time.Duration {
+	return baseTTL + time.Duration(rand.Intn(5))*time.Second
+}
 
 type Cache struct {
 	mu          sync.RWMutex
-	policy      Policy
+	policy      policy2.Policy
 	maxSize     int
 	policy_type Policytype
 }
@@ -37,11 +43,9 @@ func (c *Cache) Add(key string, value string) {
 			c.policy = lru.NewLruCache(c.maxSize)
 		case Lfu:
 			c.policy = lfu.NewLfuCache(c.maxSize)
-		case FIFO:
-			c.policy = fifo.New(c.maxSize)
 		}
 	}
-	c.policy.Add(key, value)
+	c.policy.Add(key, value, Gettime())
 }
 
 func (c *Cache) Get(key string) (string, bool) {

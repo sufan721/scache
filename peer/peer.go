@@ -7,5 +7,5 @@ type PeerPicker interface {
 
 // 请求远程节点
 type PeerGetter interface {
-	Get(key string) (string, error)
+	Get(group string, key string) (string, error)
 }
