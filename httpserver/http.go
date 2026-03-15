@@ -66,7 +66,6 @@ func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"/",
 		2,
 	)
-
 	if len(parts) != 2 {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
@@ -74,20 +73,28 @@ func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	groupName := parts[0]
 	key := parts[1]
-
 	group := cache.GetGroup(groupName)
-
 	if group == nil {
 		http.Error(w, "group not found", http.StatusNotFound)
 		return
 	}
+	if r.URL.Path == "/stats" {
+		s := group.Stats()
+		fmt.Fprintf(w,
+			"requests=%d\nhits=%d\nmisses=%d\ndbloads=%d\n",
+			s.Requests,
+			s.Hits,
+			s.Misses,
+			s.DBLoads,
+		)
 
+		return
+	}
 	value, err := group.Get(key)
 	if err != nil {
 		log.Println("group.Get error:", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	fmt.Fprint(w, value)
 }

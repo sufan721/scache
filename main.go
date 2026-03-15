@@ -1,57 +1,67 @@
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"fmt"
 	"gocache/cache"
 	"gocache/httpserver"
 	"log"
 	"net/http"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
-var db = map[string]string{
-	"Tom":  "630",
-	"Jack": "589",
-	"Sam":  "567",
+var dbConn *sql.DB
+
+func initDB() {
+	var err error
+	dbConn, err = sql.Open(
+		"mysql",
+		"root:123456@tcp(127.0.0.1:3306)/test",
+	)
+	if err != nil {
+		panic(err)
+	}
+	err = dbConn.Ping()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("mysql connected")
 }
 
 func createGroup() *cache.Group {
 	return cache.NewGroup("scores", 2<<10, cache.GetterFunc(
 		func(key string) (string, error) {
+			log.Println("[MySQL] search key", key)
+			var value string
+			err := dbConn.QueryRow(
+				"SELECT score FROM scores WHERE name=?",
+				key,
+			).Scan(&value)
 
-			log.Println("[Getter] DB lookup key =", key)
-
-			if v, ok := db[key]; ok {
-				log.Println("[Getter] HIT DB:", key, "->", v)
-				return v, nil
+			if err != nil {
+				return "", err
 			}
 
-			log.Println("[Getter] MISS DB:", key)
-			return "", fmt.Errorf("key not exist")
+			return value, nil
 		}))
 }
 
 func startCacheServer(addr string, addrs []string, g *cache.Group) {
 
-	// 创建节点池
 	peers := httpserver.NewHTTPPool(addr)
-
-	// 注册所有节点
 	peers.Set(addrs...)
-
-	// 只注册一次 peerPicker
 	g.RegisterPeer(peers)
-
 	log.Println("cache node running at", addr)
-
 	log.Fatal(http.ListenAndServe(addr[7:], peers))
 }
 
 func main() {
 
+	initDB()
 	var port int
 	flag.IntVar(&port, "port", 8001, "cache server port")
-
 	flag.Parse()
 
 	addrMap := map[int]string{
@@ -66,8 +76,20 @@ func main() {
 	}
 
 	group := createGroup()
-	for k := range db {
-		group.Bloom().Add(k)
+
+	rows, err := dbConn.Query("SELECT name FROM scores")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var name string
+		err := rows.Scan(&name)
+		if err != nil {
+			log.Fatal(err)
+		}
+		group.Bloom().Add(name)
 	}
 	startCacheServer(addrMap[port], addrs, group)
 }

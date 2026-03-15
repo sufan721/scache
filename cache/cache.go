@@ -15,11 +15,13 @@ const (
 	LRU Policytype = iota
 	Lfu
 )
-const baseTTL = time.Second * 10
+
+const baseTTL = time.Minute * 10
 
 func Gettime() time.Duration {
 	return baseTTL + time.Duration(rand.Intn(5))*time.Second
 }
+
 
 type Cache struct {
 	mu          sync.RWMutex
@@ -28,11 +30,13 @@ type Cache struct {
 	policy_type Policytype
 }
 
+
 func NewCache(maxSize int) *Cache {
 	return &Cache{
 		maxSize: maxSize,
 	}
 }
+
 
 func (c *Cache) Add(key string, value string) {
 	c.mu.Lock()
@@ -47,6 +51,7 @@ func (c *Cache) Add(key string, value string) {
 	}
 	c.policy.Add(key, value, Gettime())
 }
+
 
 func (c *Cache) Get(key string) (string, bool) {
 	c.mu.RLock()
